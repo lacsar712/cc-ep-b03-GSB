@@ -9,6 +9,7 @@ from app.cqrs import (
     ConflictError,
     DomainError,
     abort_run,
+    archive_run,
     attach_artifact,
     complete_run,
     list_events,
@@ -19,6 +20,7 @@ from app.database import get_db
 from app.models import RunProjection
 from app.schemas import (
     AbortRunCommand,
+    ArchiveRunCommand,
     AttachArtifactCommand,
     CompleteRunCommand,
     EventOut,
@@ -59,6 +61,7 @@ def login(body: LoginRequest):
 def get_runs(
     project: str | None = Query(default=None),
     status: str | None = Query(default=None),
+    include_archived: bool = Query(default=False),
     db: Session = Depends(get_db),
     _user: dict = Depends(get_current_user),
 ):
@@ -67,6 +70,8 @@ def get_runs(
         stmt = stmt.where(RunProjection.project == project)
     if status:
         stmt = stmt.where(RunProjection.status == status)
+    if not include_archived:
+        stmt = stmt.where(RunProjection.archived.is_(False))
     return list(db.scalars(stmt).all())
 
 
@@ -184,6 +189,24 @@ def post_abort(
         _handle_domain(exc)
 
 
+@router.post("/runs/{run_id}/archive", response_model=RunOut)
+def post_archive(
+    run_id: UUID,
+    body: ArchiveRunCommand,
+    db: Session = Depends(get_db),
+    user: dict = Depends(require_researcher),
+):
+    try:
+        return archive_run(
+            db,
+            run_id=run_id,
+            actor=user["username"],
+            expected_version=body.expected_version,
+        )
+    except DomainError as exc:
+        _handle_domain(exc)
+
+
 @router.get("/runs/{run_id}/events", response_model=list[EventOut])
 def get_events(
     run_id: UUID,
@@ -223,4 +246,6 @@ def get_lineage(
         finished_at=proj.finished_at,
         started_by=proj.started_by,
         version=proj.version,
+        archived=proj.archived,
+        archived_at=proj.archived_at,
     )

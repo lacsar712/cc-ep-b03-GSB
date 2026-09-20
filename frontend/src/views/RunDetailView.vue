@@ -6,10 +6,21 @@
         <p class="muted" style="margin-top: 0">
           {{ run.project }} ·
           <n-tag size="small" :type="statusType">{{ statusLabel }}</n-tag>
+          <n-tag v-if="run.archived" size="small" :bordered="false" style="margin-left: 4px">
+            已归档<template v-if="run.archived_at"> · {{ formatTime(run.archived_at) }}</template>
+          </n-tag>
           · version {{ run.version }}
         </p>
       </div>
       <div style="display: flex; gap: 8px">
+        <n-button
+          v-if="canArchive"
+          type="warning"
+          :loading="busy"
+          @click="confirmArchive"
+        >
+          归档
+        </n-button>
         <n-button @click="$router.push(`/runs/${run.id}/events`)">事件时间线</n-button>
         <n-button @click="$router.push(`/runs/${run.id}/lineage`)">血缘</n-button>
       </div>
@@ -32,6 +43,10 @@
         <div>
           <div class="muted">finished_at</div>
           <div>{{ run.finished_at ? formatTime(run.finished_at) : '—' }}</div>
+        </div>
+        <div>
+          <div class="muted">archived_at</div>
+          <div>{{ run.archived_at ? formatTime(run.archived_at) : '—' }}</div>
         </div>
       </div>
       <p v-if="run.description" style="margin-top: 12px">{{ run.description }}</p>
@@ -92,16 +107,17 @@
         <n-button type="warning" :loading="busy" @click="doAbort">AbortRun</n-button>
       </div>
     </div>
-    <div v-else class="card muted">审计员只读：可查看事件与血缘，不可发送命令。</div>
+    <div v-else class="card muted">{{ readonlyHint }}</div>
   </div>
 </template>
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { useMessage } from 'naive-ui'
+import { useDialog, useMessage } from 'naive-ui'
 import {
   abortRun,
+  archiveRun,
   attachArtifact,
   completeRun,
   getRun,
@@ -112,6 +128,7 @@ import { useAuthStore } from '../stores/auth'
 const route = useRoute()
 const auth = useAuthStore()
 const message = useMessage()
+const dialog = useDialog()
 const run = ref(null)
 const busy = ref(false)
 const completeSummary = ref('')
@@ -126,6 +143,18 @@ const artifact = reactive({
 })
 
 const canWrite = computed(() => auth.role === 'researcher' && run.value?.status === 'running')
+const canArchive = computed(
+  () => auth.role === 'researcher' && run.value?.status === 'completed' && !run.value?.archived,
+)
+const readonlyHint = computed(() => {
+  if (run.value?.archived) {
+    return '该 Run 已归档：命令操作已关闭；事件流水原样保留，仍可在事件时间线与血缘中查看。'
+  }
+  if (auth.role !== 'researcher') {
+    return '审计员只读：可查看事件与血缘，不可发送命令。'
+  }
+  return 'Run 已处于终态，不可再发送命令。'
+})
 const statusLabel = computed(() => {
   const m = { running: '进行中', completed: '已完成', aborted: '已中止' }
   return m[run.value?.status] || run.value?.status
@@ -221,6 +250,19 @@ function doAbort() {
       expected_version: run.value.version,
     }),
   )
+}
+
+function confirmArchive() {
+  dialog.warning({
+    title: '归档 Run',
+    content: '归档后默认列表不再显示该 Run（可在列表开启“含归档”查看）。事件流水不会删除。确认归档？',
+    positiveText: '确认归档',
+    negativeText: '取消',
+    onPositiveClick: () =>
+      withBusy(() =>
+        archiveRun(run.value.id, { expected_version: run.value.version }),
+      ),
+  })
 }
 
 onMounted(async () => {

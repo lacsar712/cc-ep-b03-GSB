@@ -10,6 +10,7 @@ from sqlalchemy import select, text
 
 from app.cqrs import attach_artifact, complete_run, record_metric, start_run
 from app.database import Base, SessionLocal, engine
+from app.main import _ensure_run_archive_columns
 from app.models import RunProjection
 
 
@@ -31,6 +32,7 @@ def wait_for_db(max_attempts: int = 60) -> None:
 def seed() -> None:
     wait_for_db()
     Base.metadata.create_all(bind=engine)
+    _ensure_run_archive_columns()
 
     db = SessionLocal()
     try:

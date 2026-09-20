@@ -51,6 +51,7 @@ function itemType(t) {
   if (t === 'RunCompleted') return 'success'
   if (t === 'RunAborted') return 'warning'
   if (t === 'RunStarted') return 'info'
+  if (t === 'RunArchived') return 'default'
   return 'default'
 }
 

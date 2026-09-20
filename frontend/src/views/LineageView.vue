@@ -5,6 +5,7 @@
         <h1 style="margin-bottom: 4px">实验血缘</h1>
         <p class="muted" style="margin-top: 0">
           {{ lineage.project }} / {{ lineage.name }} · {{ lineage.status }} · v{{ lineage.version }}
+          <n-tag v-if="lineage.archived" size="small" :bordered="false">已归档</n-tag>
         </p>
       </div>
       <div style="display: flex; gap: 8px">

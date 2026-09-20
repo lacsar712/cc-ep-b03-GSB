@@ -39,6 +39,10 @@ class AbortRunCommand(BaseModel):
     expected_version: int = Field(ge=1)
 
 
+class ArchiveRunCommand(BaseModel):
+    expected_version: int = Field(ge=1)
+
+
 class LoginRequest(BaseModel):
     username: str
     password: str
@@ -67,6 +71,8 @@ class RunOut(BaseModel):
     artifacts_json: list[Any]
     result_summary: str | None
     abort_reason: str | None
+    archived: bool
+    archived_at: datetime | None
 
     model_config = {"from_attributes": True}
 
@@ -98,3 +104,5 @@ class LineageOut(BaseModel):
     finished_at: datetime | None
     started_by: str
     version: int
+    archived: bool
+    archived_at: datetime | None
