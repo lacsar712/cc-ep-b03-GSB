@@ -67,6 +67,11 @@ export async function abortRun(id, body) {
   return data
 }
 
+export async function archiveRun(id, body) {
+  const { data } = await api.post(`/runs/${id}/archive`, body)
+  return data
+}
+
 export async function getEvents(id) {
   const { data } = await api.get(`/runs/${id}/events`)
   return data

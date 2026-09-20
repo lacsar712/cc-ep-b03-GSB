@@ -62,14 +62,15 @@ pytest -q
 4. 在详情页记录指标、挂载产物，再 Complete（或 Abort）
 5. 打开「事件时间线」确认 version 递增的原始事件
 6. 打开「血缘」确认 code_commit、dataset 指纹、artifacts、metrics
-7. 健康检查：`GET http://localhost:8173/api/health`
-8. 用 `auditor` 登录：可看列表/事件/血缘，命令按钮不可用
+7. 归档：在列表或详情页对一条**已完成** Run 点「归档」→ 默认列表不再显示；勾选「含归档」仍可查到并进入详情，详情展示已归档标记与归档人/时间
+8. 健康检查：`GET http://localhost:8173/api/health`
+9. 用 `auditor` 登录：可看列表/事件/血缘，命令按钮（含归档）不可用
 
-终态或 `expected_version` 不匹配时，API 返回 **409**。
+终态或 `expected_version` 不匹配时，API 返回 **409**；对未完成的 Run 归档同样返回 **409**。
 
 ## 架构要点
 
-- **命令**：`StartRun` / `RecordMetric` / `AttachArtifact` / `CompleteRun` / `AbortRun`
-- **事件**：`RunStarted` / `MetricRecorded` / `ArtifactAttached` / `RunCompleted` / `RunAborted`
-- **event_store**：`(aggregate_id, version)` 唯一；冲突 → 409
-- **run_projections**：查询侧投影（状态、指标、产物等）
+- **命令**：`StartRun` / `RecordMetric` / `AttachArtifact` / `CompleteRun` / `AbortRun` / `ArchiveRun`
+- **事件**：`RunStarted` / `MetricRecorded` / `ArtifactAttached` / `RunCompleted` / `RunAborted` / `RunArchived`
+- **event_store**：`(aggregate_id, version)` 唯一；冲突 → 409；归档只追加事件，事件流水永不删除
+- **run_projections**：查询侧投影（状态、指标、产物、`archived_at`/`archived_by` 等）；默认列表过滤已归档，`include_archived=true` 可含归档查询

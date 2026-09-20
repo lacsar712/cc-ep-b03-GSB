@@ -79,6 +79,8 @@ def _apply_event_to_projection(proj: RunProjection | None, event: EventStore) ->
             artifacts_json=[],
             result_summary=None,
             abort_reason=None,
+            archived_at=None,
+            archived_by=None,
         )
 
     if proj is None:
@@ -117,6 +119,9 @@ def _apply_event_to_projection(proj: RunProjection | None, event: EventStore) ->
         proj.status = "aborted"
         proj.abort_reason = payload["reason"]
         proj.finished_at = event.occurred_at
+    elif event.event_type == "RunArchived":
+        proj.archived_at = event.occurred_at
+        proj.archived_by = event.actor
     else:
         raise DomainError(f"未知事件类型: {event.event_type}")
 
@@ -292,6 +297,36 @@ def abort_run(
         version=expected_version + 1,
         event_type="RunAborted",
         payload={"reason": reason},
+        actor=actor,
+    )
+    proj = _apply_event_to_projection(proj, event)
+    db.commit()
+    db.refresh(proj)
+    return proj
+
+
+def archive_run(
+    db: Session,
+    *,
+    run_id: UUID,
+    actor: str,
+    expected_version: int,
+) -> RunProjection:
+    proj = _get_projection(db, run_id)
+    if proj is None:
+        raise DomainError("Run 不存在", status_code=404)
+    if proj.archived_at is not None:
+        raise ConflictError("Run 已归档，不可重复归档")
+    if proj.status != "completed":
+        raise ConflictError("仅已完成的 Run 可归档")
+    _check_expected_version(proj, expected_version)
+
+    event = _append_event(
+        db,
+        aggregate_id=run_id,
+        version=expected_version + 1,
+        event_type="RunArchived",
+        payload={},
         actor=actor,
     )
     proj = _apply_event_to_projection(proj, event)

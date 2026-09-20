@@ -6,6 +6,7 @@
         <p class="muted" style="margin-top: 0">
           {{ run.project }} ·
           <n-tag size="small" :type="statusType">{{ statusLabel }}</n-tag>
+          <n-tag v-if="run.archived_at" size="small">已归档</n-tag>
           · version {{ run.version }}
         </p>
       </div>
@@ -33,6 +34,10 @@
           <div class="muted">finished_at</div>
           <div>{{ run.finished_at ? formatTime(run.finished_at) : '—' }}</div>
         </div>
+        <div>
+          <div class="muted">archived_by / archived_at</div>
+          <div>{{ run.archived_at ? `${run.archived_by} · ${formatTime(run.archived_at)}` : '—' }}</div>
+        </div>
       </div>
       <p v-if="run.description" style="margin-top: 12px">{{ run.description }}</p>
       <p v-if="run.result_summary"><strong>结果：</strong>{{ run.result_summary }}</p>
@@ -58,6 +63,14 @@
           :bordered="false"
         />
       </div>
+    </div>
+
+    <div v-if="canArchive" class="card" style="margin-bottom: 16px">
+      <h3 style="margin-top: 0">归档（ArchiveRun）</h3>
+      <p class="muted" style="margin-top: 0">
+        仅已完成的 Run 可归档；归档后默认列表不再显示（可开「含归档」查看），事件流水保留。
+      </p>
+      <n-button :loading="busy" @click="doArchive">归档此 Run（expected_version = {{ run.version }}）</n-button>
     </div>
 
     <div v-if="canWrite" class="card">
@@ -102,6 +115,7 @@ import { useRoute } from 'vue-router'
 import { useMessage } from 'naive-ui'
 import {
   abortRun,
+  archiveRun,
   attachArtifact,
   completeRun,
   getRun,
@@ -126,6 +140,9 @@ const artifact = reactive({
 })
 
 const canWrite = computed(() => auth.role === 'researcher' && run.value?.status === 'running')
+const canArchive = computed(
+  () => auth.role === 'researcher' && run.value?.status === 'completed' && !run.value?.archived_at,
+)
 const statusLabel = computed(() => {
   const m = { running: '进行中', completed: '已完成', aborted: '已中止' }
   return m[run.value?.status] || run.value?.status
@@ -218,6 +235,14 @@ function doAbort() {
   return withBusy(() =>
     abortRun(run.value.id, {
       reason: abortReason.value,
+      expected_version: run.value.version,
+    }),
+  )
+}
+
+function doArchive() {
+  return withBusy(() =>
+    archiveRun(run.value.id, {
       expected_version: run.value.version,
     }),
   )

@@ -43,3 +43,5 @@ class RunProjection(Base):
     artifacts_json: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     result_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     abort_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    archived_by: Mapped[str | None] = mapped_column(String(64), nullable=True)

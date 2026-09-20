@@ -9,7 +9,7 @@ from uuid import UUID
 from sqlalchemy import select, text
 
 from app.cqrs import attach_artifact, complete_run, record_metric, start_run
-from app.database import Base, SessionLocal, engine
+from app.database import Base, SessionLocal, engine, ensure_schema_upgrades
 from app.models import RunProjection
 
 
@@ -31,6 +31,7 @@ def wait_for_db(max_attempts: int = 60) -> None:
 def seed() -> None:
     wait_for_db()
     Base.metadata.create_all(bind=engine)
+    ensure_schema_upgrades()
 
     db = SessionLocal()
     try:

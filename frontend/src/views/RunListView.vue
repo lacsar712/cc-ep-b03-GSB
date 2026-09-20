@@ -24,7 +24,10 @@
           />
         </n-form-item>
       </div>
-      <n-button style="margin-top: 8px" @click="load">筛选</n-button>
+      <div style="margin-top: 8px; display: flex; align-items: center; gap: 16px">
+        <n-button @click="load">筛选</n-button>
+        <n-checkbox v-model:checked="includeArchived" @update:checked="load">含归档</n-checkbox>
+      </div>
     </div>
 
     <div class="card">
@@ -37,7 +40,7 @@
 import { h, onMounted, ref } from 'vue'
 import { NButton, NTag, useMessage } from 'naive-ui'
 import { useRouter } from 'vue-router'
-import { listRuns } from '../api/client'
+import { archiveRun, listRuns } from '../api/client'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
@@ -47,6 +50,7 @@ const rows = ref([])
 const loading = ref(false)
 const project = ref('')
 const status = ref(null)
+const includeArchived = ref(false)
 
 const statusOptions = [
   { label: '进行中', value: 'running' },
@@ -68,7 +72,11 @@ const columns = [
     key: 'status',
     render(row) {
       const m = statusMap[row.status] || { type: 'default', label: row.status }
-      return h(NTag, { type: m.type, size: 'small' }, { default: () => m.label })
+      const tags = [h(NTag, { type: m.type, size: 'small' }, { default: () => m.label })]
+      if (row.archived_at) {
+        tags.push(h(NTag, { size: 'small', style: 'margin-left:6px' }, { default: () => '已归档' }))
+      }
+      return h('div', { style: 'display:flex;align-items:center' }, tags)
     },
   },
   { title: '版本', key: 'version', width: 70 },
@@ -83,18 +91,34 @@ const columns = [
     title: '操作',
     key: 'actions',
     render(row) {
-      return h(
-        'div',
-        { style: 'display:flex;gap:8px;flex-wrap:wrap' },
-        [
-          h(NButton, { size: 'tiny', onClick: () => router.push(`/runs/${row.id}`) }, { default: () => '详情' }),
-          h(NButton, { size: 'tiny', quaternary: true, onClick: () => router.push(`/runs/${row.id}/events`) }, { default: () => '事件' }),
-          h(NButton, { size: 'tiny', quaternary: true, onClick: () => router.push(`/runs/${row.id}/lineage`) }, { default: () => '血缘' }),
-        ],
-      )
+      const buttons = [
+        h(NButton, { size: 'tiny', onClick: () => router.push(`/runs/${row.id}`) }, { default: () => '详情' }),
+        h(NButton, { size: 'tiny', quaternary: true, onClick: () => router.push(`/runs/${row.id}/events`) }, { default: () => '事件' }),
+        h(NButton, { size: 'tiny', quaternary: true, onClick: () => router.push(`/runs/${row.id}/lineage`) }, { default: () => '血缘' }),
+      ]
+      if (auth.role === 'researcher' && row.status === 'completed' && !row.archived_at) {
+        buttons.push(
+          h(
+            NButton,
+            { size: 'tiny', tertiary: true, onClick: () => doArchive(row) },
+            { default: () => '归档' },
+          ),
+        )
+      }
+      return h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap' }, buttons)
     },
   },
 ]
+
+async function doArchive(row) {
+  try {
+    await archiveRun(row.id, { expected_version: row.version })
+    message.success(`已归档：${row.name}`)
+    await load()
+  } catch (e) {
+    message.error(e.message || '归档失败')
+  }
+}
 
 async function load() {
   loading.value = true
@@ -102,6 +126,7 @@ async function load() {
     const params = {}
     if (project.value.trim()) params.project = project.value.trim()
     if (status.value) params.status = status.value
+    if (includeArchived.value) params.include_archived = true
     rows.value = await listRuns(params)
   } catch (e) {
     message.error(e.message || '加载失败')
